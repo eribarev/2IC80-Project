@@ -1,0 +1,30 @@
+#!/bin/bash
+
+echo -e 'nameserver 127.0.0.11' > /etc/resolv.conf
+
+# Assign IP to attacker
+ip addr add 10.0.0.10/24 dev eth0
+ip link set eth0 up
+
+# Update and install Python + pip inside the container
+apt-get update
+apt-get install -y python3 python3-pip
+
+cd /src
+
+# # Create venv if it doesn't exist
+# if [ ! -d venv ]; then
+#     python3 -m venv --system-site-packages venv
+# fi
+
+# Activate it
+# source venv/bin/activate
+
+# Install requirements if the file exists
+if [ -f requirements.txt ]; then
+    echo "[*] Installing Python requirements..."
+    # pip install -r requirements.txt
+    pip3 install --break-system-packages -r requirements.txt
+else
+    echo "[!] No requirements.txt found in /src"
+fi
