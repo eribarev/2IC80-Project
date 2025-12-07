@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Assign IP to server node
+ip addr add 10.0.0.30/24 dev eth0
+ip link set eth0 up
+
+apt-get update
+apt-get install -y python3
+
+# Create a tiny web root
+mkdir -p /var/www/html
+cat > /var/www/html/index.html << 'EOF'
+<html>
+  <head><title>Test Website</title></head>
+  <body>
+    <h1>Hello Friends!</h1>
+  </body>
+</html>
+EOF
+
+# Start a simple HTTP server on port 80
+python3 -m http.server 80 --directory /var/www/html &
+
+
