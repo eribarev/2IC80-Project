@@ -6,25 +6,18 @@ echo -e 'nameserver 127.0.0.11' > /etc/resolv.conf
 ip addr add 10.0.0.10/24 dev eth0
 ip link set eth0 up
 
-# Update and install Python + pip inside the container
+# Update and install Python + pip + virtual environment module inside the container 
 apt-get update
-apt-get install -y python3 python3-pip
+apt-get install -y python3 python3-pip python3-venv
 
-cd /src
+# Create workspace and navigate to it
+mkdir -p /home/lab
+cd /home/lab
 
-# # Create venv if it doesn't exist
-# if [ ! -d venv ]; then
-#     python3 -m venv --system-site-packages venv
-# fi
+# Create a virtual environment for development on level /home/lab
+python3 -m venv venv
 
-# Activate it
-# source venv/bin/activate
-
-# Install requirements if the file exists
-if [ -f requirements.txt ]; then
-    echo "[*] Installing Python requirements..."
-    # pip install -r requirements.txt
-    pip3 install --break-system-packages -r requirements.txt
-else
-    echo "[!] No requirements.txt found in /src"
-fi
+# Activate environment, install required packages, safely deactivate the environment
+source venv/bin/activate &&\
+ cd src && pip install -r requirements.txt &&\
+ deactivate
