@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# Assign IP to gateway
+ip addr add 10.0.0.1/24 dev eth0
+ip link set eth0 up
+
+# Enable IP forwarding
+sysctl -w net.ipv4.ip_forward=1
+
+# Update package list
+apt-get update
+apt-get install -y python3
+
+# Kill anything on port 53 (clean start)
+fuser -k 53/udp 2>/dev/null || true
+fuser -k 53/tcp 2>/dev/null || true
+
+# Start Python DNS forwarder - FIXED VERSION
+# Using a proper script instead of -c inline
+cat > /root/dns_server.py << 'EOF'
+#!/usr/bin/env python3
+import socket
+import threading
+import time
+
+def handle_query(data, addr, sock):
+    """Forward DNS query to Google DNS and return response"""
+    try:
+        # Forward to Google DNS
+        google_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        google_sock.settimeout(3.0)
+        google_sock.sendto(data, ('8.8.8.8', 53))
+        response, _ = google_sock.recvfrom(1024)
+        
+        # Send response back to client
+        sock.sendto(response, addr)
+        
+        # Extract domain for logging (optional)
+        try:
+            domain = ''
+            pos = 12
+            length = data[pos]
+            while length != 0 and pos < len(data):
+                if pos + 1 + length <= len(data):
+                    domain += data[pos+1:pos+1+length].decode('utf-8', errors='ignore') + '.'
+                pos += 1 + length
+                if pos < len(data):
+                    length = data[pos]
+                else:
+                    break
+            domain = domain.rstrip('.')
+            print(f'DNS: {domain} -> {addr[0]}')
+        except:
+            print(f'DNS query from {addr[0]}')
+            
+    except socket.timeout:
+        print(f'DNS timeout for {addr[0]}')
+    except Exception as e:
+        print(f'DNS error: {e}')
+
+def start_dns_server():
+    """Start DNS server on port 53"""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    # Allow port reuse
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+    try:
+        sock.bind(('0.0.0.0', 53))
+        print('DNS server started on 0.0.0.0:53')
+        print('Forwarding to 8.8.8.8')
+        
+        while True:
+            try:
+                data, addr = sock.recvfrom(1024)
+                # Handle each query in a new thread
+                thread = threading.Thread(target=handle_query, args=(data, addr, sock))
+                thread.daemon = True
+                thread.start()
+            except Exception as e:
+                print(f'Server recv error: {e}')
+                time.sleep(1)
+    except Exception as e:
+        print(f'Failed to bind DNS server: {e}')
+        return False
+    
+    return True
+
+if __name__ == '__main__':
+    print("Starting DNS forwarder...")
+    if not start_dns_server():
+        print("DNS server failed to start. Retrying in 5 seconds...")
+        time.sleep(5)
+        start_dns_server()
+EOF
+
+# Make it executable
+chmod +x /root/dns_server.py
+
+# Start DNS server in background with nohup to keep it running
+nohup python3 /root/dns_server.py > /var/log/dns_server.log 2>&1 &
+
+# Wait a moment for server to start
+sleep 3
+
+# Test DNS server locally
+echo "Testing DNS server..."
+if timeout 2 python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(1)
+s.sendto(b'\xaa\xaa\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01', ('127.0.0.1', 53))
+try:
+    data, addr = s.recvfrom(1024)
+    print('✓ DNS server responding')
+except socket.timeout:
+    print('✗ DNS server not responding')
+" 2>/dev/null | grep -q "✓"; then
+    echo "✓ DNS server is working"
+else
+    echo "✗ DNS server may have issues, starting fallback..."
+    
+fi
+
+# Set gateway's own DNS to itself (and fallback)
+echo "nameserver 10.0.0.1" > /etc/resolv.conf
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+
+echo "========================================="
+echo "Gateway ready at 10.0.0.1"
+echo "IP forwarding enabled"
+echo "DNS server running on port 53"
+echo "========================================="

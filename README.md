@@ -1,4 +1,4 @@
-# 2IC80-Project - ARP Spoofing & DNS Poisoning Tool with SSL Stripping tool
+# 2IC80-Project - ARP Poisoning & DNS Spoofing Tool with SSL Stripping tool
 
 This project implements a **fully-fledged, plug-and-play Man-in-the-Middle (MITM)** attack toolkit using **Python and Scapy**.  
 The tool performs automated interception and manipulation of traffic through a combination of:
@@ -37,8 +37,7 @@ The toolkit automatically adapts to new networks by performing:
 This allows the tool to run with minimal user configuration.
 
 ### 6. Modular Architecture
-Each attack technique is implemented as a separate module within `/src/`, enabling easy maintenance and future extensions.
-
+Each attack technique is implemented as a separate module within `home/lab/src/`, enabling easy maintenance and future extensions.
 
 
 ## Kathara Lab Environment
@@ -47,12 +46,15 @@ A **Kathara network lab** was made to test the attacks in an isolated environmen
 The lab (for now) includes:
 
 - **Attacker node** running the MITM toolkit  
-- **Victim node** to demonstrate ARP, DNS, and SSL manipulation  
-- Both connected on the same subnetwork
+- **Victim node** to demonstrate ARP, DNS, and SSL manipulation
+- **Server node** running a http website on port 80
+- **Gateway node** running DNS server on port 53
+- All connected on the same subnetwork
 
 Startup scripts automatically configure:
 - IP addressing  
-- Routing  
+- Routing
+- DNS
 - Python environment on the attacker VM with the tools from /src directory
 - Changes to the code from the host update dynamically in the attacker
 
@@ -74,8 +76,8 @@ kathara lstart
 Inside the attacker VM:
 
 ```bash
-cd /src
-python3 main.py
+cd /home/lab/src
+python3 main.py --victim-ip 10.0.0.20 --target-ip 10.0.0.30 -i eth0
 ```
 
 ### Stopping the lab
