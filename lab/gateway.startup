@@ -15,8 +15,7 @@ apt-get install -y python3
 fuser -k 53/udp 2>/dev/null || true
 fuser -k 53/tcp 2>/dev/null || true
 
-# Start Python DNS forwarder - FIXED VERSION
-# Using a proper script instead of -c inline
+# Start Python DNS forwarder
 cat > /root/dns_server.py << 'EOF'
 #!/usr/bin/env python3
 import socket
