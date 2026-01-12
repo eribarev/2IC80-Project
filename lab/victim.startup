@@ -1,11 +1,13 @@
 #!/bin/bash
 
 # Assign IP to victim
-ip addr add 10.0.0.20/24 dev eth0
 ip link set eth0 up
+ip addr add 10.0.0.20/24 dev eth0
+
+ip route del default 2>/dev/null || true
 
 # Set default route through gateway
-ip route add default via 10.0.0.1
+ip route add default via 10.0.0.1 dev eth0
 
 # Use gateway as DNS server
 echo "nameserver 10.0.0.1" > /etc/resolv.conf

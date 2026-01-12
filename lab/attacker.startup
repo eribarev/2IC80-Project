@@ -3,21 +3,44 @@
 # echo -e 'nameserver 127.0.0.11' > /etc/resolv.conf
 
 # Assign IP to attacker
-ip addr add 10.0.0.10/24 dev eth0
 ip link set eth0 up
+ip addr add 10.0.0.10/24 dev eth0
 
 # Set default route through gateway
-ip route add default via 10.0.0.1
+ip route del default 2>/dev/null || true
+ip route add default via 10.0.0.1 dev eth0
 
-echo "nameserver 8.8.8.8" > /etc/resolv.conf
+# Disable reverse path filter to allow spoofed source IPs in DNS responses
+sysctl -w net.ipv4.conf.all.rp_filter=0 2>/dev/null || true
+sysctl -w net.ipv4.conf.eth0.rp_filter=0 2>/dev/null || true
+
+# Enable IP forwarding (allows MITM packet handling)
+sysctl -w net.ipv4.ip_forward=1 2>/dev/null || true
+
+echo "nameserver 10.0.0.1" > /etc/resolv.conf
+
+# Wait until gateway + outbound TCP works (DNS alone is not enough)
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    ping -c 1 -W 1 10.0.0.1 >/dev/null 2>&1 || { sleep 1; continue; }
+
+    # DNS must work
+    nslookup deb.debian.org >/dev/null 2>&1 || { sleep 1; continue; }
+
+    # And outbound TCP must work (HTTP HEAD request). If curl isn't installed yet,
+    # try a raw TCP connect using bash /dev/tcp.
+    (echo > /dev/tcp/deb.debian.org/80) >/dev/null 2>&1 && break
+
+    sleep 1
+done
+
 
 # Update and install Python + pip inside the container
 apt-get update
-apt-get install -y python3 python3-pip python3-venv tcpdump dnsutils net-tools
+apt-get install -y python3 python3-pip python3-venv dnsutils curl net-tools iptables
 
 # Create workspace and navigate to it
 mkdir -p /home/lab
-cd /home/lab
+cd /home/lab/
 
 python3 -m venv venv
 
@@ -25,6 +48,7 @@ source venv/bin/activate &&\
  cd src && pip install -r requirements.txt &&\
  deactivate
 
+####
 # # Create venv if it doesn't exist
 # if [ ! -d venv ]; then
 #     python3 -m venv --system-site-packages venv
@@ -32,6 +56,7 @@ source venv/bin/activate &&\
 
 # Activate it
 # source venv/bin/activate
+####
 
 # Install requirements if the file exists
 # if [ -f requirements.txt ]; then

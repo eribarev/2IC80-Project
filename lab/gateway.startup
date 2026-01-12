@@ -121,6 +121,21 @@ else
     
 fi
 
+
+# Enable IP forwarding
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# Bring up WAN interface (bridged)
+ip link set eth1 up
+
+# NAT: translate LAN traffic out via eth1
+iptables -t nat -A POSTROUTING -s 10.0.0.0/24 -o eth1 -j MASQUERADE
+
+# Allow forwarding
+iptables -A FORWARD -i eth0 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+
 # Set gateway's own DNS to itself (and fallback)
 echo "nameserver 10.0.0.1" > /etc/resolv.conf
 echo "nameserver 8.8.8.8" >> /etc/resolv.conf
