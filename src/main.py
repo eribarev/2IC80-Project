@@ -56,7 +56,7 @@ def validate_mode_requirements(mode: str, dns_rules_path: str | None) -> tuple[b
 @click.option("--target-ip", required=True, help="IP address of the gateway/target to impersonate.")
 @click.option("--interface", "-i", default=None, help="Network interface to use (default: auto-detect).")
 @click.option("--dns-rules", "-d", type=click.Path(exists=False), default=None, help="Path to JSON file with DNS spoofing rules.")
-@click.option("--silent", "-s", is_flag=True, default=False, help="(#TO DO")
+@click.option("--silent", "-s", is_flag=True, default=False, help="Silent mode: listen for ARP requests instead of continuous poisoning (ARP only).")
 def main(
     mode: str,
     victim_ip: str,
@@ -109,6 +109,7 @@ def main(
         victim_ip=victim_ip,
         gateway_ip=target_ip,
         dns_rules=dns_rules_dict,
+        silent=silent,
     )
 
     manager = AttackManager(config=config)
