@@ -182,13 +182,13 @@ class DNSSpoofer:
             subprocess.run(cmd, check=True, capture_output=True)
             
             self._iptables_rules_added = True
-            click.echo(f"[+] iptables: Blocking DNS forwarding from {self.victim_ip} to {self.gateway_ip}")
+            click.echo(click.style(f"iptables: Blocking DNS forwarding from {self.victim_ip}", fg="yellow"))
             
         except subprocess.CalledProcessError as e:
-            click.echo(f"[!] Warning: Failed to set iptables rules: {e}")
-            click.echo("[!] DNS spoofing may be unreliable (kernel may forward packets before we can spoof)")
+            click.echo(f"Warning: Failed to set iptables rules: {e}")
+            click.echo("DNS spoofing may be unreliable")
         except FileNotFoundError:
-            click.echo("[!] Warning: iptables not found, DNS spoofing may be unreliable")
+            click.echo("Warning: iptables not found, DNS spoofing may be unreliable")
 
     def _cleanup_iptables(self) -> None:
         """Remove iptables rules that were added during setup."""
@@ -204,10 +204,10 @@ class DNSSpoofer:
                 "-j", "DROP"
             ]
             subprocess.run(cmd, check=True, capture_output=True)
-            click.echo("[+] iptables: Restored DNS forwarding rules")
+            click.echo(click.style("iptables: Restored DNS rules", fg="yellow"))
             self._iptables_rules_added = False
         except subprocess.CalledProcessError:
-            click.echo("[!] Warning: Failed to remove iptables rules")
+            click.echo("Warning: Failed to remove iptables rules")
         except FileNotFoundError:
             pass
 
@@ -229,7 +229,7 @@ class DNSSpoofer:
             try:
                 response_data, _ = sock.recvfrom(4096)
             except socket.timeout:
-                click.echo("[!] DNS forward timeout for query")
+                click.echo(click.style("DNS forward timeout", fg="red"))
                 return
             finally:
                 sock.close()
@@ -248,7 +248,7 @@ class DNSSpoofer:
             sendp(response_pkt, iface=self.iface, verbose=False)
             
         except Exception as e:
-            click.echo(f"[!] DNS forward error: {e}")
+            click.echo(f"DNS forward error: {e}")
 
     def _build_dns_response(self, pkt, spoofed_ip: str | None, query_type: int = 1) -> Ether | None:
         """
@@ -325,11 +325,15 @@ class DNSSpoofer:
             return eth / ip / udp / dns
 
         except (KeyError, IndexError, AttributeError, TypeError, ValueError) as e:
-            click.echo(f"[!] Error building DNS response: {e}")
+            click.echo(f"Error building DNS response: {e}")
             return None
 
     def _handle_packet(self, pkt) -> None:
         """Process a captured DNS packet."""
+        # Early exit if spoofer has been stopped (prevents processing queued packets)
+        if not self._running:
+            return
+            
         try:
             if not pkt.haslayer(DNS) or not pkt.haslayer(DNSQR):
                 return
@@ -358,7 +362,7 @@ class DNSSpoofer:
                 # No rule for this domain
                 if self.mode == DNSMode.MITM:
                     # In MITM mode, we blocked forwarding, so we must forward manually
-                    click.echo(f"[DNS] Forwarding {qname} to upstream DNS (no spoofing rule)")
+                    click.echo(click.style(f"Forwarding {qname}", fg="blue"))
                     self._forward_dns_query(pkt)
                 # In RACE mode, do nothing - let the real DNS server respond
                 return
@@ -379,7 +383,7 @@ class DNSSpoofer:
             record_type = "AAAA" if query_type == 28 else "A"
             response = self._build_dns_response(pkt, spoofed_ip, query_type=query_type)
             if response is None:
-                click.echo(f"[!] Failed to build DNS response for {qname}")
+                click.echo(f"Failed to build DNS response for {qname}")
                 return
 
             # Send the first packet immediately
@@ -393,12 +397,12 @@ class DNSSpoofer:
 
             # Log action
             if spoofed_ip:
-                click.echo(f"[DNS] Spoofed {record_type} {qname} -> {spoofed_ip} ({send_count}x)")
+                click.echo(click.style(f"Spoofed {record_type} {qname} -> {spoofed_ip}"))
             else:
-                click.echo(f"[DNS] Blocked {record_type} {qname} (empty response)")
+                click.echo(click.style(f"Blocked {record_type} {qname}"))
 
         except (KeyError, IndexError, AttributeError, TypeError, ValueError, OSError) as e:
-            click.echo(f"[!] Error handling DNS packet: {e}")
+            click.echo(f"Error handling DNS packet: {e}")
 
     def _build_filter(self) -> str:
         """Build BPF filter for DNS traffic."""
@@ -413,9 +417,9 @@ class DNSSpoofer:
     def _sniff_loop(self) -> None:
         """Main sniffing loop running in background thread."""
         bpf_filter = self._build_filter()
-        click.echo(f"[+] DNS spoofer started in {self.mode.value.upper()} mode")
-        click.echo(f"[+] Interface: {self.iface}, Filter: {bpf_filter}")
-        click.echo(f"[+] Loaded {len(self.rules)} DNS spoofing rules")
+        # click.echo(click.style(f"DNS spoofer started in {self.mode.value.upper()} mode", fg="yellow"))
+        # click.echo(f"Interface: {self.iface}")
+        # click.echo(f"Loaded {len(self.rules)} DNS rules")
 
         try:
             sniff(
@@ -426,14 +430,12 @@ class DNSSpoofer:
                 stop_filter=lambda _: not self._running,
             )
         except (OSError, ValueError, Scapy_Exception) as e:
-            click.echo(f"[!] DNS sniffer error: {e}")
-        finally:
-            click.echo("[*] DNS spoofer thread exiting.")
+            click.echo(click.style(f"DNS sniffer error: {e}", fg="red"))
 
     def start(self) -> None:
         """Start DNS spoofing in a background thread."""
         if self._running:
-            click.echo("[*] DNSSpoofer already running.")
+            click.echo("DNS spoofer already running.")
             return
 
         # Set up iptables to block DNS forwarding (MITM mode only)
@@ -447,7 +449,6 @@ class DNSSpoofer:
         """Request DNS spoofing to stop."""
         if not self._running:
             return
-        click.echo("[*] Stopping DNS spoofer...")
         self._running = False
         
         # Clean up iptables rules

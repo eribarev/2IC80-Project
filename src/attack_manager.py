@@ -39,7 +39,7 @@ class AttackConfig:
     attacker_ip: str
     victim_ip: str
     gateway_ip: str
-    dns_rules: dict[str, str] | None = None
+    dns_rules: dict[str, dict[str, str]] | None = None
     arp_interval: float = 2.0
     silent: bool = False
 
@@ -64,7 +64,6 @@ class AttackManager:
         self._original_sigint = signal.getsignal(signal.SIGINT)
 
         def handler(_signum, _frame):
-            click.echo("\n[!] Interrupt received, stopping attack...")
             self.stop()
 
         signal.signal(signal.SIGINT, handler)
@@ -76,14 +75,14 @@ class AttackManager:
     def start(self) -> None:
         """Start the attack based on configured mode."""
         if self._running:
-            click.echo("[*] Attack already running.")
+            click.echo("Attack already running.")
             return
 
         self._running = True
         mode = self.config.mode
 
-        click.echo(f"[+] Starting attack in {mode.value} mode")
-        click.echo(f"[+] Target: {self.config.victim_ip} <-> {self.config.gateway_ip}")
+        # click.echo(click.style(f"Starting in {mode.value} mode", fg="green"))
+        # click.echo(f"Target: {self.config.victim_ip} <-> {self.config.gateway_ip}")
 
         try:
             needs_arp = mode in (
@@ -103,9 +102,8 @@ class AttackManager:
             )
 
             if needs_arp:
-                click.echo("[*] Initializing ARP poisoner...")
                 arp_mode = "silent" if self.config.silent else "all-out"
-                click.echo(f"[*] ARP mode: {arp_mode}")
+                click.echo(click.style(f"Initialising ARP poisoner in {arp_mode} mode...", fg="yellow"))
                 self._arp_poisoner = ARPPoisoner(
                     iface=self.config.iface,
                     victim_ip=self.config.victim_ip,
@@ -123,7 +121,7 @@ class AttackManager:
                     raise ValueError("DNS rules required for DNS spoofing modes")
 
                 dns_mode = DNSMode.RACE if mode == AttackMode.DNS_ONLY else DNSMode.MITM
-                click.echo(f"[*] Initializing DNS spoofer in {dns_mode.value} mode...")
+                click.echo(click.style(f"Initialising DNS spoofer in {dns_mode.value.capitalize()} mode...", fg="yellow"))
                 self._dns_spoofer = DNSSpoofer(
                     iface=self.config.iface,
                     rules=self.config.dns_rules,
@@ -136,11 +134,10 @@ class AttackManager:
             # TO DO
             #if needs_ssl:
 
-            click.echo("[+] Attack started successfully")
-            click.echo("[+] Press Ctrl+C to stop")
+            click.echo(click.style("Attack started successfully", fg="green", bold=True))
 
         except Exception as e:
-            click.echo(f"[!] Error starting attack: {e}")
+            click.echo(click.style(f"Error starting attack: {e}", fg="red"))
             self.stop()
             raise
 
@@ -149,7 +146,8 @@ class AttackManager:
         if not self._running:
             return
 
-        click.echo("[*] Stopping all attack modules...")
+        click.echo()
+        click.echo(click.style("Stopping all attack modules...", fg="yellow"))
         self._running = False
 
         if self._dns_spoofer:
@@ -164,7 +162,7 @@ class AttackManager:
         if self._arp_poisoner:
             self._arp_poisoner.join(timeout=5.0)
 
-        click.echo("[+] All attack modules stopped")
+        click.echo(click.style("All attack modules stopped", fg="green"))
 
     def is_running(self) -> bool:
         return self._running

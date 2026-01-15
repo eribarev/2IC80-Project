@@ -27,7 +27,7 @@ def get_interface_info(user_iface: str | None) -> tuple[str, str]:
 
 def init_raw_socket(iface: str) -> socket.socket | None:
     """
-    Initialize a raw layer-2 socket for fast packet transmission.
+    Initialise a raw layer-2 socket for fast packet transmission.
     
     Raw sockets bypass Scapy's sendp() overhead, saving ~0.5ms per packet.
     Falls back gracefully to None if creation fails (e.g., on non-Linux systems).
@@ -44,7 +44,7 @@ def init_raw_socket(iface: str) -> socket.socket | None:
             socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0003)
         )
         raw_sock.bind((iface, 0))
-        click.echo(f"[+] Raw socket initialized on {iface}")
+        # click.echo(f"[+] Raw socket initialised on {iface}")
         return raw_sock
     except (OSError, PermissionError, AttributeError) as e:
         click.echo(f"[!] Warning: Could not create raw socket: {e}")

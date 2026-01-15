@@ -12,8 +12,6 @@ Usage:
     python main.py --mode arp-only --victim-ip 10.0.0.20 --target-ip 10.0.0.1
     python main.py --mode dns-only --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --dns-rules dns_rules.json
     python main.py --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --dns-rules dns_rules.json
-
-EDUCATIONAL PURPOSE ONLY - Use only in authorized lab environments.
 """
 
 import sys
@@ -92,7 +90,7 @@ def main(
     click.echo(f"[+] Target IP: {target_ip}")
 
     # Load DNS rules if needed
-    dns_rules_dict: dict[str, str] | None = None
+    dns_rules_dict: dict[str, dict[str, str]] | None = None
     if dns_rules:
         try:
             dns_rules_dict = load_dns_rules(dns_rules)
