@@ -15,20 +15,35 @@ from dns_spoofer import load_dns_rules
 from network_utils import get_interface_info
 
 
-BANNER = r"""
-     _______  _______  _______  _______  _______          
-    (  ____ \(  ____ )(  ___  )(  ___  )(  ____ \|\     /|
-    | (    \/| (    )|| (   ) || (   ) || (    \/( \   / )
-    | (_____ | (____)|| |   | || |   | || (__     \ (_) / 
-    (_____  )|  _____)| |   | || |   | ||  __)     \   /  
-          ) || (      | |   | || |   | || (         ) (   
-    /\____) || )      | (___) || (___) || )         | |   
-    \_______)|/       (_______)(_______)|/          \_/   
-                                                                            
-                [ ARP+DNS+SSL Attack Tool ]
-          2IC80 Lab On Offensive Computer Security
-"""
 
+# BANNER = r"""
+#      _______  _______  _______  _______  _______          
+#     (  ____ \(  ____ )(  ___  )(  ___  )(  ____ \|\     /|
+#     | (    \/| (    )|| (   ) || (   ) || (    \/( \   / )
+#     | (_____ | (____)|| |   | || |   | || (__     \ (_) / 
+#     (_____  )|  _____)| |   | || |   | ||  __)     \   /  
+#           ) || (      | |   | || |   | || (         ) (   
+#     /\____) || )      | (___) || (___) || )         | |   
+#     \_______)|/       (_______)(_______)|/          \_/   
+                                                                            
+#                 [ ARP+DNS+SSL Attack Tool ]
+#           2IC80 Lab On Offensive Computer Security
+# """
+BANNER = r"""
+
+       ,-,--.     _ __      _,.---._       _,.---._        _,---.                
+     ,-.'-  _\ .-`.' ,`.  ,-.' , -  `.   ,-.' , -  `.   .-`.' ,  \ ,--.-.  .-,--.
+    /==/_ ,_.'/==/, -   \/==/_,  ,  - \ /==/_,  ,  - \ /==/_  _.-'/==/- / /=/_ / 
+    \==\  \  |==| _ .=. |==|   .=.     |==|   .=.     /==/-  '..-.\==\, \/=/. /  
+     \==\ -\ |==| , '=',|==|_ : ;=:  - |==|_ : ;=:  - |==|_ ,    / \==\  \/ -/   
+     _\==\ ,\|==|-  '..'|==| , '='     |==| , '='     |==|   .--'   |==|  ,_/    
+    /==/\/ _ |==|,  |    \==\ -    ,_ / \==\ -    ,_ /|==|-  |      \==\-, /     
+    \==\ - , /==/ - |     '.='. -   .'   '.='. -   .' /==/   \      /==/._/      
+     `--`---'`--`---'       `--`--''       `--`--''   `--`---'      `--`-`       
+                                                                            
+                         [ ARP+DNS+SSL Attack Tool ]
+                  2IC80 Lab On Offensive Computer Security
+"""
 
 # Color codes for terminal output
 class Colors:
@@ -187,11 +202,11 @@ class SpoofyConsole(cmd.Cmd):
         if not self.current_mode:
             print(colorize("- No mode selected", Colors.YELLOW))
             required = list(self.options.keys())
-            optional = []
+            optional: list[str] = []
         else:
             mode_info = MODES[self.current_mode]
-            required = mode_info["required"]
-            optional = mode_info["optional"]
+            required = list(mode_info["required"])
+            optional = list(mode_info["optional"])
 
         print(f"\n  Mode: {colorize(self.current_mode or '(none)', Colors.CYAN)}\n")
         print(f"  {'Name':<15} {'Current':<25} {'Required':<10} Description")
