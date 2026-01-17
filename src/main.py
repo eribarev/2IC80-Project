@@ -20,7 +20,7 @@ from pathlib import Path
 import click
 
 from attack_manager import AttackManager, AttackConfig, AttackMode
-from network_utils import get_interface_info, load_dns_rules
+from network_utils import load_dns_rules, get_interface_info, get_gateway_ip
 
 
 # Available attack modes
@@ -50,7 +50,7 @@ def validate_mode_requirements(mode: str, dns_rules_path: str | None) -> tuple[b
     help="Attack mode to use.",
 )
 @click.option("--victim-ip", required=True, help="IP address of the victim.")
-@click.option("--target-ip", required=True, help="IP address of the gateway/target to impersonate.")
+@click.option("--target-ip", help="IP address of the gateway/target to impersonate.")
 @click.option("--interface", "-i", default=None, help="Network interface to use (default: auto-detect).")
 @click.option("--dns-rules", "-d", type=click.Path(exists=False), default=None, help="Path to JSON file with DNS spoofing rules.")
 @click.option("--silent", "-s", is_flag=True, default=False, help="Silent mode: listen for ARP requests instead of continuous poisoning (ARP only).")
@@ -87,6 +87,17 @@ def main(
     click.echo(f"[+] Using interface: {iface} (IP: {attacker_ip})")
     click.echo(f"[+] Victim IP: {victim_ip}")
     click.echo(f"[+] Target IP: {target_ip}")
+
+    # Find gateway if not given
+    if not target_ip:
+        click.echo("    --target-ip not specified. Assuming target is default gateway.")
+        try:
+            target_ip = get_gateway_ip()
+            click.echo(f"    Gateway IP: {target_ip}")
+        except (OSError, RuntimeError, ValueError) as e:
+            click.echo(click.style(f"[!] Failed to get gateway address: {e}", fg="red"))
+            sys.exit(1)
+
 
     # Load DNS rules if needed
     dns_rules_dict: dict[str, dict[str, str | None]] | None = None

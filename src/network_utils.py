@@ -29,13 +29,13 @@ def get_interface_info(user_iface: str | None) -> tuple[str, str]:
 def init_raw_socket(iface: str) -> socket.socket | None:
     """
     Initialise a raw layer-2 socket for fast packet transmission.
-    
+
     Raw sockets bypass Scapy's sendp() overhead, saving ~0.5ms per packet.
     Falls back gracefully to None if creation fails (e.g., on non-Linux systems).
-    
+
     Args:
         iface: Network interface name
-        
+
     Returns:
         Raw socket object or None if creation failed
     """
@@ -57,12 +57,12 @@ def send_raw_packet(raw_socket: socket.socket | None, packet_bytes: bytes,
                     iface: str) -> bool:
     """
     Send packet using raw socket (fast) or fall back to Scapy sendp().
-    
+
     Args:
         raw_socket: Raw socket object or None for fallback
         packet_bytes: Raw packet bytes to send
         iface: Network interface for fallback
-        
+
     Returns:
         True if sent successfully
     """
@@ -96,7 +96,7 @@ def load_dns_rules(rules_path: str | Path) -> dict[str, dict[str, str | None]]:
     normalized: dict[str, dict[str, str | None]] = {}
     for key, value in rules.items():
         domain = key.rstrip(".").lower()
-        
+
         if isinstance(value, str):
             # Simple format: IPv4 only
             normalized[domain] = {"A": value, "AAAA": None}  # type: ignore
@@ -110,3 +110,16 @@ def load_dns_rules(rules_path: str | Path) -> dict[str, dict[str, str | None]]:
             raise ValueError(f"Invalid rule format for {key}")
 
     return normalized
+
+def get_gateway_ip() -> str:
+    """Find the default gateway's IP address.
+
+    Returns:
+        A str containing the address
+    """
+
+    # This should be a guaranteed non-existent address, hence trying to route
+    # to it will definitely use the gateway
+    route = conf.route.route("192.0.2.0")
+
+    return route[2]
