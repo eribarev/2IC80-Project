@@ -68,7 +68,7 @@ Ensure the following are installed on your host machine:
 ### Starting the lab
 Navigate to `lab/` and launch:
 ```bash
-cd /lab
+cd ./lab
 kathara lstart
 ```
 
