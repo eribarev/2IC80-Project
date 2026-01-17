@@ -147,7 +147,7 @@ Where the remainder of the command consists of parameters passed to the attack.
 
 - ARP + DNS + SSL
 <pre>
-<span style="color:red">spoofy</span> > use arp-dns
+<span style="color:red">spoofy</span> > use arp-dns-ssl
 <span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set VICTIM_IP 10.0.0.20
 <span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set TARGET_IP 10.0.0.1
 <span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set DNS_RULES dns_rules.json
