@@ -100,11 +100,11 @@ python console.py
 ```
 <img src="image.png" width="60%">
 
-Alternatively, the attack can be run using:
+Alternatively, the attack can be executed using the command-line interface as follows:
 ```
-python main.py run ...
+python main.py run --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --dns-rules dns_rules.json
 ```
-Where the remainder of the command consists of parameters passed to the attack.
+<!-- Where the remainder of the command consists of parameters passed to the attack. -->
 
 ### 3. Example Sessions:
 - ARP Poisoning (with Silent mode)
