@@ -200,4 +200,5 @@ kathara lclean
 ### Demonstration Video
 You can see the tool in action in the following video:
 
-![demo](media/2IC80-chaptered-small.mp4)
+https://github.com/user-attachments/assets/e8eb5d20-e1c9-4cba-835a-df4983cd98bc
+
