@@ -233,7 +233,13 @@ class SpoofyConsole(cmd.Cmd):
         for opt in optional:
             if opt not in required:
                 value = self.options.get(opt, "")
-                display_val = value if value else "(default)"
+                # Special handling for ARP_INTERVAL in silent mode
+                if opt == "ARP_INTERVAL":
+                    silent_val = self.options.get("SILENT", "false").lower()
+                    silent = silent_val in ("true", "yes", "1", "on")
+                    display_val = "-" if silent else (value if value else "(default)")
+                else:
+                    display_val = value if value else "(default)"
                 print(f"  {opt:<15} {display_val:<25} {'no':<10} {descriptions.get(opt, '')}")
         
         print()
@@ -288,7 +294,8 @@ class SpoofyConsole(cmd.Cmd):
         print(f"  Victim    : {self.options['VICTIM_IP']}")
         print(f"  Target    : {self.options['TARGET_IP']}")
         if "ARP_INTERVAL" in mode_info.get("optional", []):
-            print(f"  ARP intvl : {self.options.get('ARP_INTERVAL', '2.0')}s")
+            interval_display = "-" if silent else f"{self.options.get('ARP_INTERVAL', '2.0')}s"
+            print(f"  ARP intvl : {interval_display}")
         if "SILENT" in mode_info.get("optional", []):
             print(f"  ARP mode  : {'silent (reactive)' if silent else 'all-out (continuous)'}")
         if "SSL_PROXY_PORT" in mode_info.get("optional", []):
