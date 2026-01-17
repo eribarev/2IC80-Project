@@ -5,7 +5,7 @@
 * [Features](#features)
 * [Attack Modes](#attack-modes)
 * [Kathara Lab Environment](#kathara-lab-environment)
-* [Instruction Guide](#instruction-guide)
+* [User Guide](#user-guide)
 
 ## Overview 
 This project implements a **fully-fledged, plug-and-play Man-in-the-Middle (MITM)** attack toolkit using **Python and Scapy**.  
@@ -73,7 +73,7 @@ Startup scripts automatically configure:
 - Python environment on the attacker VM with the tools from /src directory
 - Changes to the code from the host update dynamically in the attacker
 
-## Instruction Guide
+## User Guide
 
 ### Prerequisites
 Ensure the following are installed on your host machine:
@@ -98,19 +98,66 @@ source venv/bin/activate
 cd src/
 python console.py
 ```
-<img src="image.png" width="40%">
+<img src="image.png" width="60%">
 
 Alternatively, the attack can be run using:
 ```
 python main.py run ...
 ```
-
 Where the remainder of the command consists of parameters passed to the attack.
 
-### 3. Interrupting/Stopping the attack:
+### 3. Example Sessions:
+- ARP Poisoning (with Silent mode)
+<pre>
+<span style="color:red">spoofy</span> > use arp-only
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set VICTIM_IP 10.0.0.20
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set TARGET_IP 10.0.0.1
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set SILENT true
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
+</pre>
+
+<img src="image-1.png" width="25%">
+
+
+- DNS Spoofing
+<pre>
+<span style="color:red">spoofy</span> > use dns-only
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set VICTIM_IP 10.0.0.20
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set TARGET_IP 10.0.0.1
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set DNS_RULES dns_rules.json
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
+</pre>
+
+- ARP + DNS
+<pre>
+<span style="color:red">spoofy</span> > use arp-dns
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set VICTIM_IP 10.0.0.20
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set TARGET_IP 10.0.0.1
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set DNS_RULES dns_rules.json
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
+</pre>
+
+- ARP + SSL
+<pre>
+<span style="color:red">spoofy</span> > use arp-ssl
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set VICTIM_IP 10.0.0.20
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set TARGET_IP 10.0.0.1
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
+</pre>
+
+- ARP + DNS + SSL
+<pre>
+<span style="color:red">spoofy</span> > use arp-dns
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set VICTIM_IP 10.0.0.20
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set TARGET_IP 10.0.0.1
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > set DNS_RULES dns_rules.json
+<span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
+</pre>
+
+### 4. Interrupting/Stopping the attack:
 The attacks can be stopped from the command line using Ctrl+C
 
-### 4. Stopping the lab
+### 5. Stopping the lab
 From the host machine to cleanly remove all VMs and close Kathara run:
 ```bash
 cd lab/
