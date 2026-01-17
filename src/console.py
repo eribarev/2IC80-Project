@@ -81,12 +81,12 @@ MODES = {
     "arp-ssl": {
         "description": "ARP poisoning + SSL stripping",
         "required": ["VICTIM_IP", "TARGET_IP"],
-        "optional": ["INTERFACE", "ARP_INTERVAL", "SILENT"],
+        "optional": ["INTERFACE", "ARP_INTERVAL", "SILENT", "SSL_PROXY_PORT"],
     },
     "arp-dns-ssl": {
         "description": "Complete attack: ARP + DNS + SSL",
         "required": ["VICTIM_IP", "TARGET_IP", "DNS_RULES"],
-        "optional": ["INTERFACE", "ARP_INTERVAL", "SILENT"],
+        "optional": ["INTERFACE", "ARP_INTERVAL", "SILENT", "SSL_PROXY_PORT"],
     },
 }
 
@@ -98,6 +98,7 @@ DEFAULT_OPTIONS = {
     "DNS_RULES": "dns_rules.json",
     "ARP_INTERVAL": "2.0",
     "SILENT": "false",  # Silent ARP mode: listen for ARP requests instead of continuous poisoning
+    "SSL_PROXY_PORT": "8080",  # Port for SSL stripping proxy
 }
 
 
@@ -218,6 +219,7 @@ class SpoofyConsole(cmd.Cmd):
             "DNS_RULES": "Path to DNS rules JSON file",
             "ARP_INTERVAL": "ARP poison interval in seconds",
             "SILENT": "Silent ARP mode (true/false)",
+            "SSL_PROXY_PORT": "SSL stripping proxy port (default 8080)",
         }
         
         # Show required options first
@@ -289,6 +291,8 @@ class SpoofyConsole(cmd.Cmd):
             print(f"  ARP intvl : {self.options.get('ARP_INTERVAL', '2.0')}s")
         if "SILENT" in mode_info.get("optional", []):
             print(f"  ARP mode  : {'silent (reactive)' if silent else 'all-out (continuous)'}")
+        if "SSL_PROXY_PORT" in mode_info.get("optional", []):
+            print(f"  SSL proxy : port {self.options.get('SSL_PROXY_PORT', '8080')}")
         print()
 
         # Load DNS rules if needed
@@ -310,6 +314,7 @@ class SpoofyConsole(cmd.Cmd):
             dns_rules=dns_rules_dict,
             arp_interval=float(self.options.get("ARP_INTERVAL", "2.0")),
             silent=silent,
+            ssl_proxy_port=int(self.options.get("SSL_PROXY_PORT", "8080")),
         )
 
         # Create and run manager

