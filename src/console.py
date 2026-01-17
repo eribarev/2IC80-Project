@@ -11,8 +11,7 @@ import sys
 from pathlib import Path
 
 from attack_manager import AttackManager, AttackConfig, AttackMode
-from dns_spoofer import load_dns_rules
-from network_utils import get_interface_info
+from network_utils import get_interface_info, load_dns_rules
 
 
 
@@ -41,8 +40,8 @@ BANNER = r"""
     \==\ - , /==/ - |     '.='. -   .'   '.='. -   .' /==/   \      /==/._/      
      `--`---'`--`---'       `--`--''       `--`--''   `--`---'      `--`-`       
                                                                             
-                         [ ARP+DNS+SSL Attack Tool ]
-                  2IC80 Lab On Offensive Computer Security
+                           [ ARP+DNS+SSL Attack Tool ]
+                    2IC80 Lab On Offensive Computer Security
 """
 
 # Color codes for terminal output

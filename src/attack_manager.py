@@ -39,7 +39,7 @@ class AttackConfig:
     attacker_ip: str
     victim_ip: str
     gateway_ip: str
-    dns_rules: dict[str, dict[str, str]] | None = None
+    dns_rules: dict[str, dict[str, str | None]] | None = None
     arp_interval: float = 2.0
     silent: bool = False
 

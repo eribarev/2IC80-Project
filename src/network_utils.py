@@ -6,7 +6,8 @@ Includes raw socket handling for low-latency packet transmission.
 import socket
 import click
 from scapy.all import conf, get_if_addr, Ether, sendp  # type: ignore[import-untyped,attr-defined]  # pylint: disable=no-name-in-module
-
+from pathlib import Path
+import json
 
 def get_interface_info(user_iface: str | None) -> tuple[str, str]:
     """
@@ -74,3 +75,38 @@ def send_raw_packet(raw_socket: socket.socket | None, packet_bytes: bytes,
     # Fallback to Scapy
     sendp(Ether(packet_bytes), iface=iface, verbose=False)
     return True
+
+def load_dns_rules(rules_path: str | Path) -> dict[str, dict[str, str | None]]:
+    """
+    Load DNS spoofing rules from a JSON file.
+    Supports two formats:
+    - Simple: {"domain": "ipv4"} - IPv4 only, AAAA returns empty
+    - Full: {"domain": {"A": "ipv4", "AAAA": "ipv6"}} - Both record types
+    """
+    path = Path(rules_path)
+    if not path.exists():
+        raise FileNotFoundError(f"DNS rules file not found: {path}")
+
+    with open(path, "r", encoding="utf-8") as f:
+        rules = json.load(f)
+
+    if not isinstance(rules, dict):
+        raise ValueError("DNS rules must be a JSON object (dict)")
+
+    normalized: dict[str, dict[str, str | None]] = {}
+    for key, value in rules.items():
+        domain = key.rstrip(".").lower()
+        
+        if isinstance(value, str):
+            # Simple format: IPv4 only
+            normalized[domain] = {"A": value, "AAAA": None}  # type: ignore
+        elif isinstance(value, dict):
+            # Full format with A and/or AAAA
+            normalized[domain] = {
+                "A": value.get("A"),
+                "AAAA": value.get("AAAA"),
+            }
+        else:
+            raise ValueError(f"Invalid rule format for {key}")
+
+    return normalized

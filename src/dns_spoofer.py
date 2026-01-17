@@ -16,7 +16,6 @@ Features:
 from __future__ import annotations
 
 import fnmatch
-import json
 import socket
 import subprocess
 import threading
@@ -54,43 +53,10 @@ class DNSMode(Enum):
     MITM = "mitm"      # ARP-DNS: victim sends DNS directly to us
 
 
-def load_dns_rules(rules_path: str | Path) -> dict[str, dict[str, str]]:
-    """
-    Load DNS spoofing rules from a JSON file.
-    Supports two formats:
-    - Simple: {"domain": "ipv4"} - IPv4 only, AAAA returns empty
-    - Full: {"domain": {"A": "ipv4", "AAAA": "ipv6"}} - Both record types
-    """
-    path = Path(rules_path)
-    if not path.exists():
-        raise FileNotFoundError(f"DNS rules file not found: {path}")
-
-    with open(path, "r", encoding="utf-8") as f:
-        rules = json.load(f)
-
-    if not isinstance(rules, dict):
-        raise ValueError("DNS rules must be a JSON object (dict)")
-
-    normalized: dict[str, dict[str, str]] = {}
-    for key, value in rules.items():
-        domain = key.rstrip(".").lower()
-        
-        if isinstance(value, str):
-            # Simple format: IPv4 only
-            normalized[domain] = {"A": value, "AAAA": None}  # type: ignore
-        elif isinstance(value, dict):
-            # Full format with A and/or AAAA
-            normalized[domain] = {
-                "A": value.get("A"),
-                "AAAA": value.get("AAAA"),
-            }
-        else:
-            raise ValueError(f"Invalid rule format for {key}")
-
-    return normalized
 
 
-def match_domain(query_domain: str, rules: dict[str, dict[str, str]]) -> dict[str, str] | None:
+
+def match_domain(query_domain: str, rules: dict[str, dict[str, str | None]]) -> dict[str, str | None] | None:
     """Match a queried domain against DNS rules."""
     query_domain = query_domain.rstrip(".").lower()
 
@@ -124,7 +90,7 @@ class DNSSpoofer:
     def __init__(
         self,
         iface: str,
-        rules: dict[str, dict[str, str]],
+        rules: dict[str, dict[str, str | None]],
         mode: DNSMode = DNSMode.RACE,
         victim_ip: str | None = None,
         gateway_ip: str | None = None,

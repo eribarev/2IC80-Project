@@ -20,8 +20,7 @@ from pathlib import Path
 import click
 
 from attack_manager import AttackManager, AttackConfig, AttackMode
-from dns_spoofer import load_dns_rules
-from network_utils import get_interface_info
+from network_utils import get_interface_info, load_dns_rules
 
 
 # Available attack modes
@@ -90,7 +89,7 @@ def main(
     click.echo(f"[+] Target IP: {target_ip}")
 
     # Load DNS rules if needed
-    dns_rules_dict: dict[str, dict[str, str]] | None = None
+    dns_rules_dict: dict[str, dict[str, str | None]] | None = None
     if dns_rules:
         try:
             dns_rules_dict = load_dns_rules(dns_rules)
