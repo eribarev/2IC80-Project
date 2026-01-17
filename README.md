@@ -98,7 +98,7 @@ source venv/bin/activate
 cd src/
 python console.py
 ```
-<img src="image.png" width="60%">
+<img src="media/image.png" width="60%">
 
 Alternatively, the attack can be executed using the command-line interface as follows:
 ```
@@ -116,7 +116,7 @@ python main.py run --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --d
 <span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
 </pre>
 
-<img src="image-1.png" width="25%">
+<img src="media/image-1.png" width="25%">
 
 
 - DNS Spoofing
@@ -164,4 +164,7 @@ cd lab/
 kathara lclean
 ```
 
+### Demonstration Video
+You can see the tool in action in the following video:
 
+![demo](media/2IC80-chaptered-small.mp4)
