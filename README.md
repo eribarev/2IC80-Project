@@ -12,7 +12,7 @@ The tool performs automated interception and manipulation of traffic through a c
 ### 1. ARP Poisoning
 - Performs **ARP cache poisoning** between victim and gateway  
 - Intercepts and relays packets while keeping the victim online 
-- Includes a **stealth mode** that minimizes ARP traffic to reduce detection footprint  
+- Includes a **silent mode** that minimizes ARP traffic to reduce detection footprint  
 
 ### 2. DNS Spoofing Engine
 - Intercepts DNS queries passing through the attacker  
@@ -37,13 +37,13 @@ The toolkit automatically adapts to new networks by performing:
 This allows the tool to run with minimal user configuration.
 
 ### 6. Modular Architecture
-Each attack technique is implemented as a separate module within `home/lab/src/`, enabling easy maintenance and future extensions.
+Each attack technique is implemented as a separate module within `/home/lab/src/`, enabling easy maintenance and future extensions.
 
 
 ## Kathara Lab Environment
 A **Kathara network lab** was made to test the attacks in an isolated environment.
 
-The lab (for now) includes:
+The lab includes:
 
 - **Attacker node** running the MITM toolkit  
 - **Victim node** to demonstrate ARP, DNS, and SSL manipulation
@@ -66,19 +66,31 @@ Ensure the following are installed on your host machine:
 - **Python 3** on the host (for editing the toolkit)
 
 ### Starting the lab
-Navigate into the `lab/` directory and launch:
+Navigate to `lab/` and launch:
 ```bash
 cd /lab
 kathara lstart
 ```
 
 ### Running the tool
-Inside the attacker VM:
+Inside the Attacker Node:
 
 ```bash
-cd /home/lab/src
-python3 main.py --victim-ip 10.0.0.20 --target-ip 10.0.0.30 -i eth0
+cd /home/lab/
+source venv/bin/activate
+cd src/
+python console.py
 ```
+
+Alternatively, the attack can be run using:
+```
+python main.py run ...
+```
+
+Where the remainder of the command consists of parameters passed to the attack.
+
+### Interrupting/Stopping the attack:
+The attacks can be stopped from the command line using Ctrl+C
 
 ### Stopping the lab
 From the host machine to cleanly remove all VMs and close Kathara run:
