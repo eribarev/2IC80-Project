@@ -4,10 +4,26 @@ Includes raw socket handling for low-latency packet transmission.
 """
 
 import socket
-import click
-from scapy.all import conf, get_if_addr, Ether, sendp  # type: ignore[import-untyped,attr-defined]  # pylint: disable=no-name-in-module
 from pathlib import Path
 import json
+
+import click
+from scapy.all import ( # type: ignore[import-untyped,attr-defined]  # pylint: disable=no-name-in-module
+    conf,
+    get_if_addr,
+    Ether,
+    sendp,
+    IP,
+    ARP,
+    UDP,
+    TCP,
+    DNS,
+    DNSQR,
+    sr1,
+    srp,
+    SndRcvList
+)
+
 
 def get_interface_info(user_iface: str | None) -> tuple[str, str]:
     """
@@ -123,3 +139,115 @@ def get_gateway_ip() -> str:
     route = conf.route.route("192.0.2.0")
 
     return route[2]
+
+def broadcast_arp_req(interface: str, network_prefix: int, timeout: int, attacker_ip: str) -> SndRcvList:
+    """Perform simple network discovery using ARP.
+
+    Sends a broadcast request asking for attacker_ip/network_prefix and collects the answers it receives.
+
+    Returns:
+        A SndRcvList containing all answers after timeout s of waiting.
+    """
+    arp_request = ARP(pdst=f"{attacker_ip}/{network_prefix}")
+    broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")
+    packet = broadcast / arp_request
+
+    # Send and receive packets
+    answered, _ = srp(
+        packet,
+        iface=interface,
+        timeout=timeout,
+        retry=1,
+        verbose=False
+    )
+
+    return answered
+
+def explore_hosts(
+    attacker_ip: str, gateway_ip: str, answered: SndRcvList
+) -> list[dict[str, str]]:
+    """
+    Tries to guess what role(s) hosts in the network have.
+
+    Arguments:
+        attacker_ip (str): Attacker's IP address
+        gateway_ip (str): IP address of gateway
+        answered (SndRcvList): The list of responses to the ARP request returned by `broadcast_arp_req`
+
+    Returns:
+        A structured representation of hosts - IP address, MAC address and any extra information that was discovered.
+    """
+    hosts = []
+
+    for _, received in answered:
+        ip = received.psrc
+        mac = received.hwsrc
+        extra = []
+
+        # Special cases
+        if ip == attacker_ip:
+            continue
+
+        if ip == gateway_ip:
+            extra.append("Gateway")
+        if is_dns_server(ip):
+            extra.append("DNS")
+        if is_tcp_port_open(ip, 80):
+            extra.append("HTTP")
+        if is_tcp_port_open(ip, 443):
+            extra.append("HTTPS")
+
+        hosts.append({"ip": ip, "mac": mac, "extra": ", ".join(extra)})
+
+    return hosts
+
+def is_dns_server(ip: str, timeout: int = 1) -> bool:
+    """
+    Check whether a host behaves like a DNS server.
+    """
+
+    dns_query = IP(dst=ip) / UDP(dport=53) / DNS(
+        rd=1,
+        qd=DNSQR(qname="example.com")
+    )
+
+    response = sr1(dns_query, timeout=timeout, verbose=False)
+
+    if response is None:
+        return False
+
+    if not response.haslayer(UDP) or response[UDP].sport != 53:
+        return False
+
+    if not response.haslayer(DNS):
+        return False
+
+    dns = response[DNS]
+
+    # Must actually be a response
+    if dns.qr != 1:
+        return False
+
+    return True
+
+def is_tcp_port_open(ip: str, port: int, timeout: int = 1):
+    """
+    Check if a TCP port is open using SYN probing.
+    """
+
+    syn = IP(dst=ip) / TCP(dport=port, flags="S")
+    response = sr1(syn, timeout=timeout, verbose=False)
+
+    if response is None:
+        return False
+
+    if response.haslayer(TCP):
+        flags = response[TCP].flags
+        if not flags:
+            return False
+
+        # SYN-ACK: open
+        if "S" in flags and "A" in flags:
+            return True
+
+    return False
