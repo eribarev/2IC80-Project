@@ -60,11 +60,14 @@ A **Kathara network lab** was made to test the attacks in an isolated environmen
 
 The lab includes:
 
-- **Attacker node** running the MITM toolkit  
-- **Victim node** to demonstrate ARP, DNS, and SSL manipulation
-- **Server node** running a http website on port 80
-- **Gateway node** running DNS server on port 53
-- All connected on the same subnetwork
+| Node | IP Address | Role |
+|------|-----------|------|
+| **Gateway** | 10.0.0.1 | DNS server and network gateway |
+| **Attacker** | 10.0.0.10 | MITM toolkit execution |
+| **Victim** | 10.0.0.20 | Attack target |
+| **Server** | 10.0.0.30 | HTTP website on port 80 |
+
+All nodes are connected on the **10.0.0.0/24** subnetwork.
 
 Startup scripts automatically configure:
 - IP addressing  
@@ -98,7 +101,7 @@ source venv/bin/activate
 cd src/
 python console.py
 ```
-<img src="image.png" width="60%">
+<img src="image.png" width="65%">
 
 Alternatively, the attack can be executed using the command-line interface as follows:
 ```
@@ -116,7 +119,7 @@ python main.py run --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --d
 <span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
 </pre>
 
-<img src="image-1.png" width="25%">
+<img src="image-1.png" width="65%">
 
 
 - DNS Spoofing
@@ -154,10 +157,40 @@ python main.py run --mode arp-dns --victim-ip 10.0.0.20 --target-ip 10.0.0.1 --d
 <span style="color:red">spoofy</span> attack<span style="color:cyan">(arp-only)</span> > run
 </pre>
 
-### 4. Interrupting/Stopping the attack:
+### 4. Verifying the Attacks:
+From the **Victim Terminal**, you can verify that attacks are working:
+
+#### ARP Poisoning Verification
+Check the victim's ARP cache to verify the attacker's MAC address is bound to the gateway IP:
+```bash
+arp -n
+```
+Look for an entry where the gateway IP (10.0.0.1) maps to the attacker's MAC address instead of the true gateway MAC.
+
+#### DNS Spoofing Verification
+Query a domain configured in the DNS rules file to verify spoofing is active:
+```bash
+nslookup example.com
+```
+The response should show the attacker's IP address (10.0.0.10) instead of the legitimate target. Domains not in `dns_rules.json` work normally.
+
+#### SSL Stripping Verification
+From the **Victim Terminal**, simulate a login attempt by sending HTTP POST requests with credentials:
+```bash
+curl -X POST http://example.com/login -d "username=alice&password=secret123"
+```
+The attacker will capture and display the transmitted credentials in its console output, demonstrating successful SSL stripping and credential interception.
+
+Additionally, on the **Attacker Terminal**, monitor HTTPS traffic being tunneled to the real server:
+```bash
+tcpdump -i eth0 -n host bank.com and port 443
+```
+This shows the encrypted HTTPS traffic being forwarded between the victim and the legitimate server, confirming the attacker's MITM position.
+
+### 5. Interrupting/Stopping the attack:
 The attacks can be stopped from the command line using Ctrl+C
 
-### 5. Stopping the lab
+### 6. Stopping the lab
 From the host machine to cleanly remove all VMs and close Kathara run:
 ```bash
 cd lab/
